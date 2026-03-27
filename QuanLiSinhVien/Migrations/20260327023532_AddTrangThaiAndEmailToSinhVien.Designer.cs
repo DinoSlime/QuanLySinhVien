@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QuanLySinhVien.Data;
 
@@ -11,9 +12,11 @@ using QuanLySinhVien.Data;
 namespace QuanLiSinhVien.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260327023532_AddTrangThaiAndEmailToSinhVien")]
+    partial class AddTrangThaiAndEmailToSinhVien
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -70,10 +73,6 @@ namespace QuanLiSinhVien.Migrations
                     b.Property<decimal?>("DiemTongKet")
                         .HasColumnType("decimal(4,2)");
 
-                    b.Property<string>("GhiChu")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.HasKey("MaSV", "MaLHP");
 
                     b.ToTable("KetQuaHocTaps");
@@ -101,18 +100,7 @@ namespace QuanLiSinhVien.Migrations
                     b.Property<int>("NamHoc")
                         .HasColumnType("int");
 
-                    b.Property<string>("PhongHoc")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<int>("SiSoToiDa")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Thu")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("TietBatDau")
                         .HasColumnType("int");
 
                     b.HasKey("MaLHP");
@@ -125,16 +113,6 @@ namespace QuanLiSinhVien.Migrations
                     b.Property<string>("MaMH")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("LoaiMon")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int?>("SoTietLyThuyet")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SoTietThucHanh")
-                        .HasColumnType("int");
 
                     b.Property<int>("SoTinChi")
                         .HasColumnType("int");

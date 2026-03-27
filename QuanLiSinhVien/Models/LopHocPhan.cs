@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace QuanLySinhVien.Models
 {
@@ -16,12 +17,21 @@ namespace QuanLySinhVien.Models
         [StringLength(20)]
         public string MaGV { get; set; }
 
-        [Range(1, 3)]
+        [Range(1, 3, ErrorMessage = "Học kỳ phải từ 1 đến 3")]
         public int HocKy { get; set; }
 
         public int NamHoc { get; set; }
 
-        [Range(1, int.MaxValue)]
+        [Range(1, 200, ErrorMessage = "Sĩ số phải từ 1 đến 200")]
         public int SiSoToiDa { get; set; }
+
+        [StringLength(50)]
+        public string? PhongHoc { get; set; }
+
+        [StringLength(20)]
+        public string? Thu { get; set; } 
+
+        [Range(1, 15)]
+        public int? TietBatDau { get; set; } 
     }
 }

@@ -23,5 +23,12 @@ namespace QuanLySinhVien.Models
 
         [StringLength(50)]
         public string MaNganh { get; set; }
+
+        [StringLength(50)]
+        public string? TrangThai { get; set; }
+
+        [StringLength(100)]
+        [EmailAddress] 
+        public string? Email { get; set; }
     }
 }
