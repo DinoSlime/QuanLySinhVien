@@ -21,14 +21,52 @@ namespace QuanLiSinhVien.Controllers
             _context = context;
         }
 
-        // GET: api/LopHocPhans
+        // 1. GET: api/LopHocPhans
         [HttpGet]
         public async Task<ActionResult<IEnumerable<LopHocPhan>>> GetLopHocPhans()
         {
             return await _context.LopHocPhans.ToListAsync();
         }
 
-        // GET: api/LopHocPhans/5
+        // 2. GET: api/LopHocPhans/GiangVien/GV01
+        // API Nghiệp vụ: Lấy danh sách các lớp mà một giảng viên cụ thể đang dạy
+        [HttpGet("GiangVien/{maGV}")]
+        public async Task<ActionResult<IEnumerable<LopHocPhan>>> GetLopByGiangVien(string maGV)
+        {
+            var result = await _context.LopHocPhans
+                .Where(l => l.MaGV == maGV)
+                .OrderByDescending(l => l.NamHoc)
+                .ThenByDescending(l => l.HocKy)
+                .ToListAsync();
+
+            return Ok(result);
+        }
+
+        // 3. GET: api/LopHocPhans/Trong
+        // API Nghiệp vụ: Tìm các lớp vẫn còn chỗ (Sĩ số thực tế < Sĩ số tối đa)
+        [HttpGet("Trong")]
+        public async Task<ActionResult<IEnumerable<object>>> GetLopConTrong()
+        {
+            // Join với bảng KetQuaHocTap để đếm số lượng sinh viên đã đăng ký vào lớp đó
+            var result = await _context.LopHocPhans
+                .Select(l => new {
+                    l.MaLHP,
+                    l.MaMH,
+                    l.MaGV,
+                    l.PhongHoc,
+                    l.Thu,
+                    l.TietBatDau,
+                    l.SiSoToiDa,
+                    // Đếm số dòng trong bảng KetQuaHocTap có mã lớp này
+                    SiSoThucTe = _context.KetQuaHocTaps.Count(k => k.MaLHP == l.MaLHP)
+                })
+                .Where(x => x.SiSoThucTe < x.SiSoToiDa)
+                .ToListAsync();
+
+            return Ok(result);
+        }
+
+        // 4. GET: api/LopHocPhans/5
         [HttpGet("{id}")]
         public async Task<ActionResult<LopHocPhan>> GetLopHocPhan(string id)
         {
@@ -42,8 +80,7 @@ namespace QuanLiSinhVien.Controllers
             return lopHocPhan;
         }
 
-        // PUT: api/LopHocPhans/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // 5. PUT: api/LopHocPhans/5
         [HttpPut("{id}")]
         public async Task<IActionResult> PutLopHocPhan(string id, LopHocPhan lopHocPhan)
         {
@@ -73,8 +110,7 @@ namespace QuanLiSinhVien.Controllers
             return NoContent();
         }
 
-        // POST: api/LopHocPhans
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // 6. POST: api/LopHocPhans
         [HttpPost]
         public async Task<ActionResult<LopHocPhan>> PostLopHocPhan(LopHocPhan lopHocPhan)
         {
@@ -87,7 +123,7 @@ namespace QuanLiSinhVien.Controllers
             {
                 if (LopHocPhanExists(lopHocPhan.MaLHP))
                 {
-                    return Conflict();
+                    return Conflict("Mã lớp học phần đã tồn tại.");
                 }
                 else
                 {
@@ -98,7 +134,7 @@ namespace QuanLiSinhVien.Controllers
             return CreatedAtAction("GetLopHocPhan", new { id = lopHocPhan.MaLHP }, lopHocPhan);
         }
 
-        // DELETE: api/LopHocPhans/5
+        // 7. DELETE: api/LopHocPhans/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteLopHocPhan(string id)
         {

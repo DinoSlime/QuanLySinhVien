@@ -21,14 +21,57 @@ namespace QuanLiSinhVien.Controllers
             _context = context;
         }
 
-        // GET: api/SinhViens
+        // 1. GET: api/SinhViens (Lấy toàn bộ danh sách)
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SinhVien>>> GetSinhViens()
         {
             return await _context.SinhViens.ToListAsync();
         }
 
-        // GET: api/SinhViens/5
+        // 2. GET: api/SinhViens/Search?keyword=An
+        // API Nghiệp vụ: Tìm kiếm nhanh theo Tên hoặc Mã số sinh viên
+        [HttpGet("Search")]
+        public async Task<ActionResult<IEnumerable<SinhVien>>> SearchSinhVien(string? keyword)
+        {
+            if (string.IsNullOrEmpty(keyword))
+            {
+                return await _context.SinhViens.ToListAsync();
+            }
+
+            var result = await _context.SinhViens
+                .Where(s => s.HoTen.Contains(keyword) || s.MaSV.Contains(keyword))
+                .ToListAsync();
+
+            return Ok(result);
+        }
+
+        // 3. GET: api/SinhViens/Lop/LHP01
+        // API Nghiệp vụ: Lấy danh sách sinh viên đang học một lớp cụ thể (Dùng điểm danh)
+        [HttpGet("Lop/{maLHP}")]
+        public async Task<ActionResult<IEnumerable<object>>> GetSinhViensByLop(string maLHP)
+        {
+            var result = await (from sv in _context.SinhViens
+                                join kq in _context.KetQuaHocTaps on sv.MaSV equals kq.MaSV
+                                where kq.MaLHP == maLHP
+                                select new
+                                {
+                                    sv.MaSV,
+                                    sv.HoTen,
+                                    sv.NgaySinh,
+                                    sv.GioiTinh,
+                                    sv.TrangThai,
+                                    GhiChuDiem = kq.GhiChu
+                                }).ToListAsync();
+
+            if (!result.Any())
+            {
+                return NotFound($"Không tìm thấy sinh viên nào thuộc lớp học phần {maLHP}");
+            }
+
+            return Ok(result);
+        }
+
+        // 4. GET: api/SinhViens/SV01 (Lấy chi tiết 1 sinh viên)
         [HttpGet("{id}")]
         public async Task<ActionResult<SinhVien>> GetSinhVien(string id)
         {
@@ -42,8 +85,7 @@ namespace QuanLiSinhVien.Controllers
             return sinhVien;
         }
 
-        // PUT: api/SinhViens/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // 5. PUT: api/SinhViens/SV01 (Cập nhật thông tin)
         [HttpPut("{id}")]
         public async Task<IActionResult> PutSinhVien(string id, SinhVien sinhVien)
         {
@@ -73,8 +115,7 @@ namespace QuanLiSinhVien.Controllers
             return NoContent();
         }
 
-        // POST: api/SinhViens
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // 6. POST: api/SinhViens (Thêm mới sinh viên)
         [HttpPost]
         public async Task<ActionResult<SinhVien>> PostSinhVien(SinhVien sinhVien)
         {
@@ -87,7 +128,7 @@ namespace QuanLiSinhVien.Controllers
             {
                 if (SinhVienExists(sinhVien.MaSV))
                 {
-                    return Conflict();
+                    return Conflict("Mã sinh viên này đã tồn tại.");
                 }
                 else
                 {
@@ -98,7 +139,7 @@ namespace QuanLiSinhVien.Controllers
             return CreatedAtAction("GetSinhVien", new { id = sinhVien.MaSV }, sinhVien);
         }
 
-        // DELETE: api/SinhViens/5
+        // 7. DELETE: api/SinhViens/SV01 (Xóa sinh viên)
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteSinhVien(string id)
         {
