@@ -21,61 +21,31 @@ namespace QuanLiSinhVien.Controllers
             _context = context;
         }
 
-        // 1. GET: api/KetQuaHocTaps
         [HttpGet]
         public async Task<ActionResult<IEnumerable<KetQuaHocTap>>> GetKetQuaHocTaps()
         {
             return await _context.KetQuaHocTaps.ToListAsync();
         }
 
-        // 2. GET: api/KetQuaHocTaps/BangDiem/{maSV}
-        // API Nghiệp vụ: Lấy bảng điểm chi tiết và tính GPA tích lũy
         [HttpGet("BangDiem/{maSV}")]
         public async Task<ActionResult<object>> GetBangDiem(string maSV)
         {
             var diemSV = await _context.KetQuaHocTaps.Where(k => k.MaSV == maSV).ToListAsync();
-
-            if (!diemSV.Any())
-                return NotFound("Chưa có dữ liệu điểm cho sinh viên này.");
-
-            // Tính GPA (Trung bình cộng của tất cả điểm tổng kết)
+            if (!diemSV.Any()) return NotFound("Chưa có dữ liệu điểm.");
             var gpa = diemSV.Average(k => k.DiemTongKet) ?? 0;
-
-            return Ok(new
-            {
-                MaSinhVien = maSV,
-                SoMonDaHoc = diemSV.Count,
-                GPA = Math.Round(gpa, 2),
-                ChiTietDiem = diemSV
-            });
+            return Ok(new { MaSV = maSV, GPA = Math.Round(gpa, 2), ChiTietDiem = diemSV });
         }
 
-        // 3. GET: api/KetQuaHocTaps/ThongKe/{maLHP}
-        // API Nghiệp vụ: Thống kê tỉ lệ Đạt/Trượt của một lớp
         [HttpGet("ThongKe/{maLHP}")]
         public async Task<ActionResult<object>> GetThongKeLop(string maLHP)
         {
             var danhSach = await _context.KetQuaHocTaps.Where(k => k.MaLHP == maLHP).ToListAsync();
-
-            if (!danhSach.Any())
-                return NotFound("Lớp học phần này chưa có dữ liệu điểm.");
-
+            if (!danhSach.Any()) return NotFound("Lớp chưa có điểm.");
             int tongSV = danhSach.Count;
             int soSVDat = danhSach.Count(k => k.DiemTongKet >= 5);
-            int soSVTruot = tongSV - soSVDat;
-
-            return Ok(new
-            {
-                MaLopHocPhan = maLHP,
-                TongSoSinhVien = tongSV,
-                SoLuongDat = soSVDat,
-                PhanTramDat = Math.Round((double)soSVDat / tongSV * 100, 2) + "%",
-                SoLuongTruot = soSVTruot,
-                PhanTramTruot = Math.Round((double)soSVTruot / tongSV * 100, 2) + "%"
-            });
+            return Ok(new { MaLHP = maLHP, TongSo = tongSV, SoLuongDat = soSVDat, PhanTramDat = Math.Round((double)soSVDat / tongSV * 100, 2) + "%" });
         }
 
-        // 4. GET: api/KetQuaHocTaps/{maSV}/{maLHP}
         [HttpGet("{maSV}/{maLHP}")]
         public async Task<ActionResult<KetQuaHocTap>> GetKetQuaHocTap(string maSV, string maLHP)
         {
@@ -84,74 +54,116 @@ namespace QuanLiSinhVien.Controllers
             return ketQuaHocTap;
         }
 
-        // 5. PUT: api/KetQuaHocTaps/{maSV}/{maLHP}
-        [HttpPut("{maSV}/{maLHP}")]
-        public async Task<IActionResult> PutKetQuaHocTap(string maSV, string maLHP, KetQuaHocTap ketQuaHocTap)
+        [HttpPost("DangKy")]
+        public async Task<IActionResult> DangKyHocPhan(string maSV, string maLHP)
         {
-            if (maSV != ketQuaHocTap.MaSV || maLHP != ketQuaHocTap.MaLHP)
-                return BadRequest("Mã sinh viên hoặc mã lớp không khớp.");
+            // 1. Kiểm tra tồn tại lớp học phần
+            var lop = await _context.LopHocPhans.FindAsync(maLHP);
+            if (lop == null) return NotFound("Lớp học phần không tồn tại.");
 
-            // Tự động tính lại điểm tổng kết trước khi cập nhật
-            ketQuaHocTap.DiemTongKet = TinhDiem(ketQuaHocTap.DiemQuaTrinh, ketQuaHocTap.DiemGiuaKy, ketQuaHocTap.DiemCuoiKy);
+            // 2. Quy tắc: Chỉ cho phép đăng ký trong thời gian mở
+            DateTime hienTai = DateTime.Now;
+            if (hienTai < lop.NgayBatDauDangKy || hienTai > lop.NgayKetThucDangKy)
+            {
+                return BadRequest("Hệ thống đang đóng cổng đăng ký lớp học phần này.");
+            }
 
-            _context.Entry(ketQuaHocTap).State = EntityState.Modified;
+            // 3. Quy tắc: Ràng buộc sĩ số
+            var siSoHienTai = await _context.KetQuaHocTaps.CountAsync(k => k.MaLHP == maLHP);
+            if (siSoHienTai >= lop.SiSoToiDa)
+            {
+                return BadRequest("Lớp đã đầy sĩ số tối đa. Chức năng đăng ký bị khóa.");
+            }
+
+            // 4. Quy tắc: Ràng buộc trùng lịch (Kiểm tra Thứ và Tiết bắt đầu)
+            var trungLich = await (from kq in _context.KetQuaHocTaps
+                                   join l in _context.LopHocPhans on kq.MaLHP equals l.MaLHP
+                                   where kq.MaSV == maSV
+                                         && l.HocKy == lop.HocKy && l.NamHoc == lop.NamHoc
+                                         && l.Thu == lop.Thu && l.TietBatDau == lop.TietBatDau
+                                   select l).AnyAsync();
+
+            if (trungLich)
+            {
+                return BadRequest("Không thể đăng ký do trùng lịch học hiện tại của bạn.");
+            }
+
+            // --- 4.5. QUY TẮC MỚI: RÀNG BUỘC MÔN TIÊN QUYẾT ---
+            // Lấy danh sách các môn tiên quyết mà môn học này yêu cầu
+            var danhSachMonTQ = await _context.MonTienQuyets
+                                              .Where(m => m.MaMH == lop.MaMH)
+                                              .ToListAsync();
+
+            if (danhSachMonTQ.Any())
+            {
+                foreach (var tq in danhSachMonTQ)
+                {
+                    // Tìm điểm tổng kết cao nhất của môn tiên quyết này mà sinh viên đã học
+                    var diemTienQuyet = await (from kq in _context.KetQuaHocTaps
+                                               join l in _context.LopHocPhans on kq.MaLHP equals l.MaLHP
+                                               where kq.MaSV == maSV && l.MaMH == tq.MaMHTQ
+                                               orderby kq.DiemTongKet descending
+                                               select kq.DiemTongKet).FirstOrDefaultAsync();
+
+                    // Nếu chưa học (null) hoặc điểm dưới 4.0 -> Từ chối đăng ký
+                    if (diemTienQuyet == null || diemTienQuyet < 4.0m)
+                    {
+                        return BadRequest($"Không thể đăng ký. Bạn phải hoàn thành môn tiên quyết ({tq.MaMHTQ}) với điểm từ 4.0 trở lên.");
+                    }
+                }
+            }
+            // --------------------------------------------------
+
+            // 5. Lưu dữ liệu (Tiêu chí nghiệm thu thành công)
+            var dangKyMoi = new KetQuaHocTap
+            {
+                MaSV = maSV,
+                MaLHP = maLHP,
+                DiemQuaTrinh = 0,
+                DiemGiuaKy = 0,
+                DiemCuoiKy = 0,
+                DiemTongKet = 0,
+                GhiChu = "Đăng ký thành công"
+            };
 
             try
             {
+                _context.KetQuaHocTaps.Add(dangKyMoi);
                 await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!KetQuaHocTapExists(maSV, maLHP)) return NotFound();
-                else throw;
-            }
-
-            return NoContent();
-        }
-
-        // 6. POST: api/KetQuaHocTaps
-        [HttpPost]
-        public async Task<ActionResult<KetQuaHocTap>> PostKetQuaHocTap(KetQuaHocTap ketQuaHocTap)
-        {
-            // Tự động tính điểm tổng kết trước khi lưu vào Database
-            ketQuaHocTap.DiemTongKet = TinhDiem(ketQuaHocTap.DiemQuaTrinh, ketQuaHocTap.DiemGiuaKy, ketQuaHocTap.DiemCuoiKy);
-
-            _context.KetQuaHocTaps.Add(ketQuaHocTap);
-            try
-            {
-                await _context.SaveChangesAsync();
+                return Ok("Đăng ký học phần thành công.");
             }
             catch (DbUpdateException)
             {
-                if (KetQuaHocTapExists(ketQuaHocTap.MaSV, ketQuaHocTap.MaLHP))
-                    return Conflict("Kết quả học tập cho sinh viên này trong lớp này đã tồn tại.");
-                else throw;
+                return Conflict("Sinh viên này đã đăng ký lớp học này rồi.");
             }
-
-            return CreatedAtAction("GetKetQuaHocTap", new { maSV = ketQuaHocTap.MaSV, maLHP = ketQuaHocTap.MaLHP }, ketQuaHocTap);
         }
 
-        // 7. DELETE: api/KetQuaHocTaps/{maSV}/{maLHP}
+        [HttpPut("{maSV}/{maLHP}")]
+        public async Task<IActionResult> PutKetQuaHocTap(string maSV, string maLHP, KetQuaHocTap ketQuaHocTap)
+        {
+            if (maSV != ketQuaHocTap.MaSV || maLHP != ketQuaHocTap.MaLHP) return BadRequest("Mã không khớp.");
+            ketQuaHocTap.DiemTongKet = TinhDiem(ketQuaHocTap.DiemQuaTrinh, ketQuaHocTap.DiemGiuaKy, ketQuaHocTap.DiemCuoiKy);
+            _context.Entry(ketQuaHocTap).State = EntityState.Modified;
+            try { await _context.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException) { if (!KetQuaHocTapExists(maSV, maLHP)) return NotFound(); else throw; }
+            return NoContent();
+        }
+
         [HttpDelete("{maSV}/{maLHP}")]
         public async Task<IActionResult> DeleteKetQuaHocTap(string maSV, string maLHP)
         {
             var ketQuaHocTap = await _context.KetQuaHocTaps.FindAsync(maSV, maLHP);
             if (ketQuaHocTap == null) return NotFound();
-
             _context.KetQuaHocTaps.Remove(ketQuaHocTap);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
-
-        // --- HÀM HỖ TRỢ (PRIVATE METHODS) ---
 
         private bool KetQuaHocTapExists(string maSV, string maLHP)
         {
             return _context.KetQuaHocTaps.Any(e => e.MaSV == maSV && e.MaLHP == maLHP);
         }
 
-        // Logic tính điểm: QT*0.2 + GK*0.3 + CK*0.5
         private decimal? TinhDiem(decimal? qt, decimal? gk, decimal? ck)
         {
             if (qt == null || gk == null || ck == null) return null;

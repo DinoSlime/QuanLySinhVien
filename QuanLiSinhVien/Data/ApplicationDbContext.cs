@@ -17,12 +17,17 @@ namespace QuanLySinhVien.Data
         public DbSet<KetQuaHocTap> KetQuaHocTaps { get; set; }
         public DbSet<TaiKhoan> TaiKhoans { get; set; }
 
+        public DbSet<MonTienQuyet> MonTienQuyets { get; set; }
+
         // Thiết lập khóa chính kép cho bảng Điểm (Kết quả học tập)
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Thiết lập khóa chính kép cho bảng điểm
             modelBuilder.Entity<KetQuaHocTap>()
                 .HasKey(k => new { k.MaSV, k.MaLHP });
+
+            modelBuilder.Entity<MonTienQuyet>()
+            .HasKey(m => new { m.MaMH, m.MaMHTQ });
 
             // Cấu hình định dạng điểm số (Lấy 2 số thập phân, tổng 4 chữ số - Ví dụ: 10.00)
             modelBuilder.Entity<KetQuaHocTap>().Property(p => p.DiemQuaTrinh).HasColumnType("decimal(4,2)");

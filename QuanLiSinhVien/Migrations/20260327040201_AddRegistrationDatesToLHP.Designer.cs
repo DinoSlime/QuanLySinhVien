@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QuanLySinhVien.Data;
 
@@ -11,9 +12,11 @@ using QuanLySinhVien.Data;
 namespace QuanLiSinhVien.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260327040201_AddRegistrationDatesToLHP")]
+    partial class AddRegistrationDatesToLHP
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -123,10 +126,6 @@ namespace QuanLiSinhVien.Migrations
 
                     b.HasKey("MaLHP");
 
-                    b.HasIndex("MaGV");
-
-                    b.HasIndex("MaMH");
-
                     b.ToTable("LopHocPhans");
                 });
 
@@ -157,23 +156,6 @@ namespace QuanLiSinhVien.Migrations
                     b.HasKey("MaMH");
 
                     b.ToTable("MonHocs");
-                });
-
-            modelBuilder.Entity("QuanLySinhVien.Models.MonTienQuyet", b =>
-                {
-                    b.Property<string>("MaMH")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnOrder(0);
-
-                    b.Property<string>("MaMHTQ")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnOrder(1);
-
-                    b.HasKey("MaMH", "MaMHTQ");
-
-                    b.ToTable("MonTienQuyets");
                 });
 
             modelBuilder.Entity("QuanLySinhVien.Models.SinhVien", b =>
@@ -240,25 +222,6 @@ namespace QuanLiSinhVien.Migrations
                     b.HasKey("TenDangNhap");
 
                     b.ToTable("TaiKhoans");
-                });
-
-            modelBuilder.Entity("QuanLySinhVien.Models.LopHocPhan", b =>
-                {
-                    b.HasOne("QuanLySinhVien.Models.GiangVien", "GiangVien")
-                        .WithMany()
-                        .HasForeignKey("MaGV")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("QuanLySinhVien.Models.MonHoc", "MonHoc")
-                        .WithMany()
-                        .HasForeignKey("MaMH")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GiangVien");
-
-                    b.Navigation("MonHoc");
                 });
 #pragma warning restore 612, 618
         }
