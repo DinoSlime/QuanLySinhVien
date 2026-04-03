@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using QuanLySinhVien.Data;
 using QuanLySinhVien.Models;
 
@@ -15,10 +19,54 @@ namespace QuanLiSinhVien.Controllers
     public class TaiKhoansController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration; // Thêm biến này để đọc cấu hình JWT
 
-        public TaiKhoansController(ApplicationDbContext context)
+        public TaiKhoansController(ApplicationDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
+        }
+
+        // --- HÀM MỚI: ĐĂNG NHẬP VÀ CẤP TOKEN ---
+        [HttpPost("DangNhap")]
+        public async Task<IActionResult> DangNhap([FromBody] LoginModel model)
+        {
+            // 1. Tìm tài khoản trong Database (Kèm theo điều kiện TrangThai = true)
+            var user = await _context.TaiKhoans
+                .FirstOrDefaultAsync(u => u.TenDangNhap == model.TenDangNhap && u.MatKhau == model.MatKhau && u.TrangThai == true);
+
+            if (user == null)
+            {
+                return Unauthorized("Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.");
+            }
+
+            // 2. Chế tạo "Thẻ thông hành" (JWT Token)
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.TenDangNhap),
+                    new Claim(ClaimTypes.Role, user.Quyen) // Đưa quyền vào Token để sau này phân quyền
+                }),
+                Expires = DateTime.UtcNow.AddHours(2), // Token có hiệu lực 2 giờ
+                Issuer = _configuration["Jwt:Issuer"],
+                Audience = _configuration["Jwt:Audience"],
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            // 3. Trả Token về cho client
+            return Ok(new
+            {
+                ThongBao = "Đăng nhập thành công",
+                Token = tokenString,
+                Quyen = user.Quyen
+            });
         }
 
         // GET: api/TaiKhoans
@@ -43,7 +91,6 @@ namespace QuanLiSinhVien.Controllers
         }
 
         // PUT: api/TaiKhoans/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTaiKhoan(string id, TaiKhoan taiKhoan)
         {
@@ -74,7 +121,6 @@ namespace QuanLiSinhVien.Controllers
         }
 
         // POST: api/TaiKhoans
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
         public async Task<ActionResult<TaiKhoan>> PostTaiKhoan(TaiKhoan taiKhoan)
         {
@@ -118,5 +164,12 @@ namespace QuanLiSinhVien.Controllers
         {
             return _context.TaiKhoans.Any(e => e.TenDangNhap == id);
         }
+    }
+
+    // Lớp phụ dùng để nhận dữ liệu JSON từ body khi đăng nhập
+    public class LoginModel
+    {
+        public string TenDangNhap { get; set; }
+        public string MatKhau { get; set; }
     }
 }

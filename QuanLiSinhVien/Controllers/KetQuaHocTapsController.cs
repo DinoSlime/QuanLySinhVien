@@ -135,10 +135,14 @@ namespace QuanLiSinhVien.Controllers
             }
         }
 
-        // --- HÀM MỚI ĐÃ CẬP NHẬT CHO MỤC 3.2 ---
+        // --- GẮN Ổ KHÓA: Phải có Token hợp lệ VÀ Role phải là GiangVien mới được gọi API này ---
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "GiangVien")]
         [HttpPut("NhapDiem/{maSV}/{maLHP}")]
-        public async Task<IActionResult> NhapDiem(string maSV, string maLHP, [FromQuery] string maGV, [FromBody] KetQuaHocTap ketQuaHocTap)
+        public async Task<IActionResult> NhapDiem(string maSV, string maLHP, [FromBody] KetQuaHocTap ketQuaHocTap)
         {
+            // TỰ ĐỘNG LẤY MÃ GIẢNG VIÊN TỪ TOKEN (An toàn tuyệt đối, không thể làm giả)
+            var maGV = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
             // Kiểm tra khớp mã trên URL và trong Body
             if (maSV != ketQuaHocTap.MaSV || maLHP != ketQuaHocTap.MaLHP)
                 return BadRequest("Mã sinh viên hoặc mã lớp học phần không khớp.");
@@ -147,6 +151,7 @@ namespace QuanLiSinhVien.Controllers
             var lop = await _context.LopHocPhans.FindAsync(maLHP);
             if (lop == null) return NotFound("Không tìm thấy lớp học phần.");
 
+            // Hệ thống tự so sánh mã GV trong Token với mã GV dạy lớp này
             if (lop.MaGV != maGV)
             {
                 return StatusCode(403, "Lỗi phân quyền: Bạn không được phân công giảng dạy lớp này nên không có quyền nhập điểm.");
