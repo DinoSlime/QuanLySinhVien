@@ -89,7 +89,6 @@ namespace QuanLiSinhVien.Controllers
             }
 
             // --- 4.5. QUY TẮC MỚI: RÀNG BUỘC MÔN TIÊN QUYẾT ---
-            // Lấy danh sách các môn tiên quyết mà môn học này yêu cầu
             var danhSachMonTQ = await _context.MonTienQuyets
                                               .Where(m => m.MaMH == lop.MaMH)
                                               .ToListAsync();
@@ -98,14 +97,12 @@ namespace QuanLiSinhVien.Controllers
             {
                 foreach (var tq in danhSachMonTQ)
                 {
-                    // Tìm điểm tổng kết cao nhất của môn tiên quyết này mà sinh viên đã học
                     var diemTienQuyet = await (from kq in _context.KetQuaHocTaps
                                                join l in _context.LopHocPhans on kq.MaLHP equals l.MaLHP
                                                where kq.MaSV == maSV && l.MaMH == tq.MaMHTQ
                                                orderby kq.DiemTongKet descending
                                                select kq.DiemTongKet).FirstOrDefaultAsync();
 
-                    // Nếu chưa học (null) hoặc điểm dưới 4.0 -> Từ chối đăng ký
                     if (diemTienQuyet == null || diemTienQuyet < 4.0m)
                     {
                         return BadRequest($"Không thể đăng ký. Bạn phải hoàn thành môn tiên quyết ({tq.MaMHTQ}) với điểm từ 4.0 trở lên.");
@@ -114,7 +111,7 @@ namespace QuanLiSinhVien.Controllers
             }
             // --------------------------------------------------
 
-            // 5. Lưu dữ liệu (Tiêu chí nghiệm thu thành công)
+            // 5. Lưu dữ liệu
             var dangKyMoi = new KetQuaHocTap
             {
                 MaSV = maSV,
@@ -138,15 +135,46 @@ namespace QuanLiSinhVien.Controllers
             }
         }
 
-        [HttpPut("{maSV}/{maLHP}")]
-        public async Task<IActionResult> PutKetQuaHocTap(string maSV, string maLHP, KetQuaHocTap ketQuaHocTap)
+        // --- HÀM MỚI ĐÃ CẬP NHẬT CHO MỤC 3.2 ---
+        [HttpPut("NhapDiem/{maSV}/{maLHP}")]
+        public async Task<IActionResult> NhapDiem(string maSV, string maLHP, [FromQuery] string maGV, [FromBody] KetQuaHocTap ketQuaHocTap)
         {
-            if (maSV != ketQuaHocTap.MaSV || maLHP != ketQuaHocTap.MaLHP) return BadRequest("Mã không khớp.");
+            // Kiểm tra khớp mã trên URL và trong Body
+            if (maSV != ketQuaHocTap.MaSV || maLHP != ketQuaHocTap.MaLHP)
+                return BadRequest("Mã sinh viên hoặc mã lớp học phần không khớp.");
+
+            // --- QUY TẮC 1: GIỚI HẠN QUYỀN GIẢNG VIÊN ---
+            var lop = await _context.LopHocPhans.FindAsync(maLHP);
+            if (lop == null) return NotFound("Không tìm thấy lớp học phần.");
+
+            if (lop.MaGV != maGV)
+            {
+                return StatusCode(403, "Lỗi phân quyền: Bạn không được phân công giảng dạy lớp này nên không có quyền nhập điểm.");
+            }
+
+            // --- QUY TẮC 2: RÀNG BUỘC ĐIỂM SỐ (0-10) ---
+            if (ketQuaHocTap.DiemQuaTrinh < 0 || ketQuaHocTap.DiemQuaTrinh > 10 ||
+                ketQuaHocTap.DiemGiuaKy < 0 || ketQuaHocTap.DiemGiuaKy > 10 ||
+                ketQuaHocTap.DiemCuoiKy < 0 || ketQuaHocTap.DiemCuoiKy > 10)
+            {
+                return BadRequest("Lỗi dữ liệu: Điểm số bắt buộc phải nằm trong khoảng từ 0 đến 10.");
+            }
+
+            // --- QUY TẮC 3: TÍNH TOÁN TỰ ĐỘNG ---
             ketQuaHocTap.DiemTongKet = TinhDiem(ketQuaHocTap.DiemQuaTrinh, ketQuaHocTap.DiemGiuaKy, ketQuaHocTap.DiemCuoiKy);
+            ketQuaHocTap.GhiChu = "Đã cập nhật điểm";
+
             _context.Entry(ketQuaHocTap).State = EntityState.Modified;
-            try { await _context.SaveChangesAsync(); }
-            catch (DbUpdateConcurrencyException) { if (!KetQuaHocTapExists(maSV, maLHP)) return NotFound(); else throw; }
-            return NoContent();
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok("Cập nhật điểm thành công.");
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!KetQuaHocTapExists(maSV, maLHP)) return NotFound();
+                else throw;
+            }
         }
 
         [HttpDelete("{maSV}/{maLHP}")]
